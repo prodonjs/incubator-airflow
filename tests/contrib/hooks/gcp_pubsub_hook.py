@@ -34,6 +34,8 @@ PUBSUB_STRING = 'airflow.contrib.hooks.gcp_pubsub_hook.{}'
 
 TEST_PROJECT = 'test-project'
 TEST_TOPIC = 'test-topic'
+TEST_SUBSCRIPTION = 'test-subscription'
+TEST_UUID = 'abc123-xzy789'
 TEST_MESSAGES = [
     {
         'data': b64e('Hello, World!'),
@@ -43,6 +45,8 @@ TEST_MESSAGES = [
     {'attributes': {'foo': ''}}]
 
 EXPANDED_TOPIC = 'projects/%s/topics/%s' % (TEST_PROJECT, TEST_TOPIC)
+EXPANDED_SUBSCRIPTION = 'projects/%s/subscriptions/%s' % (TEST_PROJECT,
+                                                          TEST_SUBSCRIPTION)
 
 
 def mock_init(self, gcp_conn_id, delegate_to=None):
@@ -63,6 +67,28 @@ class PubSubHookTest(unittest.TestCase):
                          .return_value.create)
         create_method.assert_called_with(body={}, name=EXPANDED_TOPIC)
         create_method.return_value.execute.assert_called_with()
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_delete_topic(self, mock_service):
+        self.pubsub_hook.delete_topic(TEST_PROJECT, TEST_TOPIC)
+
+        delete_method = (mock_service.return_value.projects.return_value.topics
+                         .return_value.delete)
+        delete_method.assert_called_with(topic=EXPANDED_TOPIC)
+        delete_method.return_value.execute.assert_called_with()
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_delete_nonexisting_topic_failifnotexists(self, mock_service):
+        (mock_service.return_value.projects.return_value.topics
+            .return_value.delete.return_value.execute.side_effect) = HttpError(
+            resp={'status': '404'}, content='')
+
+        try:
+            self.pubsub_hook.delete_topic(TEST_PROJECT, TEST_TOPIC)
+            self.fail('Topic deletion should fail for non-existing topic when '
+                      'fail_if_not_exists=True')
+        except Exception:
+            pass  # Expected.
 
     @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
     def test_create_preexisting_topic_failifexists(self, mock_service):
@@ -91,6 +117,108 @@ class PubSubHookTest(unittest.TestCase):
         except Exception:
             self.fail('Topic creation should not fail for existing topic when '
                       'fail_if_exists=False')
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_create_nonexistent_subscription(self, mock_service):
+        self.pubsub_hook.create_subscription(
+            TEST_PROJECT, TEST_TOPIC, TEST_SUBSCRIPTION)
+
+        create_method = (
+            mock_service.return_value.projects.return_value.subscriptions
+                .return_value.create)
+        expected_body = {
+            'topic': EXPANDED_TOPIC,
+            'ackDeadlineSeconds': 10
+        }
+        create_method.assert_called_with(name=EXPANDED_SUBSCRIPTION,
+                                         body=expected_body)
+        create_method.return_value.execute.assert_called_with()
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_delete_subscription(self, mock_service):
+        self.pubsub_hook.delete_subscription(TEST_PROJECT, TEST_SUBSCRIPTION)
+
+        delete_method = (mock_service.return_value.projects
+                         .return_value.subscriptions.return_value.delete)
+        delete_method.assert_called_with(subscription=EXPANDED_SUBSCRIPTION)
+        delete_method.return_value.execute.assert_called_with()
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_delete_nonexisting_subscription_failifnotexists(self,
+                                                             mock_service):
+        (mock_service.return_value.projects.return_value.subscriptions
+         .return_value.delete.return_value.execute.side_effect) = HttpError(
+            resp={'status': '404'}, content='')
+
+        try:
+            self.pubsub_hook.delete_topic(TEST_PROJECT, TEST_SUBSCRIPTION)
+            self.fail('Subscription deletion should fail for non-existing '
+                      'subscription when fail_if_not_exists=True')
+        except Exception:
+            pass  # Expected.
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    @mock.patch(PUBSUB_STRING.format('uuid4'),
+                new_callable=mock.Mock(return_value=lambda: TEST_UUID))
+    def test_create_subscription_without_name(self, mock_uuid, mock_service):
+        self.pubsub_hook.create_subscription(TEST_PROJECT, TEST_TOPIC)
+        create_method = (
+            mock_service.return_value.projects.return_value.subscriptions
+                .return_value.create)
+        expected_body = {
+            'topic': EXPANDED_TOPIC,
+            'ackDeadlineSeconds': 10
+        }
+        expected_name = EXPANDED_SUBSCRIPTION.replace(
+            TEST_SUBSCRIPTION, 'sub-%s' % TEST_UUID)
+        create_method.assert_called_with(name=expected_name,
+                                         body=expected_body)
+        create_method.return_value.execute.assert_called_with()
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_create_subscription_with_ack_deadline(self, mock_service):
+        self.pubsub_hook.create_subscription(
+            TEST_PROJECT, TEST_TOPIC, TEST_SUBSCRIPTION, 30)
+
+        create_method = (
+            mock_service.return_value.projects.return_value.subscriptions
+                .return_value.create)
+        expected_body = {
+            'topic': EXPANDED_TOPIC,
+            'ackDeadlineSeconds': 30
+        }
+        create_method.assert_called_with(name=EXPANDED_SUBSCRIPTION,
+                                         body=expected_body)
+        create_method.return_value.execute.assert_called_with()
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_create_subscription_failifexists(self, mock_service):
+        (mock_service.return_value.projects.return_value.
+            subscriptions.return_value.get.return_value
+            .execute.side_effect) = HttpError(resp={'status': '409'},
+                                              content='')
+
+        try:
+            self.pubsub_hook.create_subscription(
+                TEST_PROJECT, TEST_TOPIC,TEST_SUBSCRIPTION, fail_if_exists=True)
+            self.fail('Subscription creation should fail for existing '
+                      'subscription when fail_if_exists=True')
+        except Exception:
+            pass
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_create_subscription_nofailifexists(self, mock_service):
+        (mock_service.return_value.projects.return_value.topics.return_value
+         .get.return_value.execute.side_effect) = HttpError(
+            resp={'status': '409'}, content='')
+
+        try:
+            self.pubsub_hook.create_subscription(
+                TEST_PROJECT, TEST_TOPIC,TEST_SUBSCRIPTION,
+                fail_if_exists=False)
+        except Exception:
+            self.fail('Subscription creation should not fail for existing '
+                      'subscription when fail_if_exists=False')
 
     @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
     def test_publish(self, mock_service):

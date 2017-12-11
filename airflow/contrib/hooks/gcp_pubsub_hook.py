@@ -12,10 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from uuid import uuid4
+
 from apiclient.discovery import build
 from apiclient import errors
 
 from airflow.contrib.hooks.gcp_api_base_hook import GoogleCloudBaseHook
+
+
+def _format_subscription(project, subscription):
+    return 'projects/%s/subscriptions/%s' % (project, subscription)
 
 
 def _format_topic(project, topic):
@@ -91,3 +97,103 @@ class PubSubHook(GoogleCloudBaseHook):
                         % full_topic)
             else:
                 raise Exception('Error creating topic %s' % full_topic, e)
+
+    def delete_topic(self, project, topic, fail_if_not_exists=False):
+        """Deletes a Pub/Sub topic, if it does not already exist.
+
+        :param project: the GCP project name or ID in which to create
+            the topic
+        :type project: string
+        :param topic: the Pub/Sub topic name to delete; do not
+            include the 'projects/{project}/topics/' prefix.
+        :type topic: string
+        :param fail_if_not_exists: if set, raise an exception if the topic
+            does not exist
+        :type fail_if_not_exists: bool
+        """
+        service = self.get_conn()
+        full_topic = _format_topic(project, topic)
+        try:
+            service.projects().topics().delete(topic=full_topic).execute()
+        except errors.HttpError as e:
+            # Status code 409 indicates that the topic was not found
+            if str(e.resp['status']) == '404':
+                if fail_if_not_exists:
+                    raise Exception(
+                        'Error deleting topic. Topic does not exist: %s'
+                        % full_topic)
+            else:
+                raise Exception('Error deleting topic %s' % full_topic, e)
+
+    def create_subscription(self, project, topic, subscription=None,
+                            ack_deadline_secs=10, fail_if_exists=False):
+        """Creates a Pub/Sub subscription, if it does not already exist.
+
+        :param project: the GCP project name or ID in which to create
+            the topic
+        :type project: string
+        :param topic: the Pub/Sub topic name that the subscription will be bound
+            to create; do not include the 'projects/{project}/topics/' prefix.
+        :type topic: string
+        :param subscription: the Pub/Sub subscription name. If empty, a random
+            name will be generated using the uuid module
+        :type subscription: string
+        :param ack_deadline_secs: Number of seconds that a subscriber has to
+            acknowledge each message pulled from the subscription
+        :type ack_deadline_secs: int
+        :param fail_if_exists: if set, raise an exception if the topic
+            already exists
+        :type fail_if_exists: bool
+        """
+        service = self.get_conn()
+        full_topic = _format_topic(project, topic)
+        if not subscription:
+            subscription = 'sub-%s' % uuid4()
+        full_subscription = _format_subscription(project, subscription)
+        body = {
+            'topic': full_topic,
+            'ackDeadlineSeconds': ack_deadline_secs
+        }
+        try:
+            service.projects().subscriptions().create(
+                name=full_subscription, body=body).execute()
+        except errors.HttpError as e:
+            # Status code 409 indicates that the subscription already exists.
+            if str(e.resp['status']) == '409':
+                if fail_if_exists:
+                    raise Exception(
+                        'Error creating subscription. '
+                        'Subscription already exists: %s' % full_subscription)
+            else:
+                raise Exception(
+                    'Error creating subscription %s' % full_subscription, e)
+
+    def delete_subscription(self, project, subscription,
+                            fail_if_not_exists=False):
+        """Deletes a Pub/Sub subscription, if it does not already exist.
+
+        :param project: the GCP project name or ID in which to create
+            the topic
+        :type project: string
+        :param subscription: the Pub/Sub subscription name to delete; do not
+            include the 'projects/{project}/topics/' prefix.
+        :type subscription: string
+        :param fail_if_not_exists: if set, raise an exception if the topic
+            does not exist
+        :type fail_if_not_exists: bool
+        """
+        service = self.get_conn()
+        full_subscription = _format_subscription(project, subscription)
+        try:
+            service.projects().subscriptions().delete(
+                subscription=full_subscription).execute()
+        except errors.HttpError as e:
+            # Status code 404 indicates that the subscription was not found
+            if str(e.resp['status']) == '404':
+                if fail_if_not_exists:
+                    raise Exception('Error deleting subscription. '
+                                    'Subscription does not exist: %s' %
+                                    full_subscription)
+            else:
+                raise Exception('Error deleting subscription %s' %
+                                full_subscription, e)
