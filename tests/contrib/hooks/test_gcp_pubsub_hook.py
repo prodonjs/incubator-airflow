@@ -114,7 +114,7 @@ class PubSubHookTest(unittest.TestCase):
 
         create_method = (
             mock_service.return_value.projects.return_value.subscriptions.
-            return_value.create)
+                return_value.create)
         expected_body = {
             'topic': EXPANDED_TOPIC,
             'ackDeadlineSeconds': 10
@@ -131,7 +131,7 @@ class PubSubHookTest(unittest.TestCase):
 
         create_method = (
             mock_service.return_value.projects.return_value.subscriptions.
-            return_value.create)
+                return_value.create)
 
         expected_subscription = 'projects/%s/subscriptions/%s' % (
             'a-different-project', TEST_SUBSCRIPTION)
@@ -155,7 +155,7 @@ class PubSubHookTest(unittest.TestCase):
 
     @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
     def test_delete_nonexisting_subscription_failifnotexists(self,
-                                                             mock_service):
+        mock_service):
         (mock_service.return_value.projects.return_value.subscriptions.
          return_value.delete.return_value.execute.side_effect) = HttpError(
             resp={'status': '404'}, content='')
@@ -176,7 +176,7 @@ class PubSubHookTest(unittest.TestCase):
                                                         TEST_TOPIC)
         create_method = (
             mock_service.return_value.projects.return_value.subscriptions.
-            return_value.create)
+                return_value.create)
         expected_body = {
             'topic': EXPANDED_TOPIC,
             'ackDeadlineSeconds': 10
@@ -195,7 +195,7 @@ class PubSubHookTest(unittest.TestCase):
 
         create_method = (
             mock_service.return_value.projects.return_value.subscriptions.
-            return_value.create)
+                return_value.create)
         expected_body = {
             'topic': EXPANDED_TOPIC,
             'ackDeadlineSeconds': 30
@@ -240,3 +240,70 @@ class PubSubHookTest(unittest.TestCase):
                           .topics.return_value.publish)
         publish_method.assert_called_with(
             topic=EXPANDED_TOPIC, body={'messages': TEST_MESSAGES})
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_pull(self, mock_service):
+        pull_method = (mock_service.return_value.projects.return_value
+                       .subscriptions.return_value.pull)
+        pulled_messages = []
+        for i in range(len(TEST_MESSAGES)):
+            pulled_messages.append({'ackId': i, 'message': TEST_MESSAGES[i]})
+        pull_method.return_value.execute.return_value = {
+            'receivedMessages': pulled_messages}
+
+        response = self.pubsub_hook.pull(TEST_PROJECT, TEST_SUBSCRIPTION, 10)
+        pull_method.assert_called_with(
+            subscription=EXPANDED_SUBSCRIPTION,
+            body={'maxMessages': 10, 'returnImmediately': False})
+        self.assertEqual(pulled_messages, response)
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_pull_no_messages(self, mock_service):
+        pull_method = (mock_service.return_value.projects.return_value
+                       .subscriptions.return_value.pull)
+        pull_method.return_value.execute.return_value = {
+            'receivedMessages': []}
+
+        response = self.pubsub_hook.pull(TEST_PROJECT, TEST_SUBSCRIPTION, 10)
+        pull_method.assert_called_with(
+            subscription=EXPANDED_SUBSCRIPTION,
+            body={'maxMessages': 10, 'returnImmediately': False})
+        self.assertListEqual([], response)
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_pull_fails_on_exception(self, mock_service):
+        pull_method = (mock_service.return_value.projects.return_value
+                       .subscriptions.return_value.pull)
+        pull_method.return_value.execute.side_effect = HttpError(
+            resp={'status': '404'}, content='')
+
+        with self.assertRaises(Exception):
+            self.pubsub_hook.pull(TEST_PROJECT, TEST_SUBSCRIPTION, 10)
+            pull_method.assert_called_with(
+                subscription=EXPANDED_SUBSCRIPTION,
+                body={'maxMessages': 10, 'returnImmediately': False})
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_acknowledge(self, mock_service):
+        ack_method = (mock_service.return_value.projects.return_value
+                       .subscriptions.return_value.acknowledge)
+        self.pubsub_hook.acknowledge(
+            TEST_PROJECT, TEST_SUBSCRIPTION, ['1', '2', '3'])
+        ack_method.assert_called_with(
+            subscription=EXPANDED_SUBSCRIPTION,
+            body={'ackIds': ['1', '2', '3']})
+
+    @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
+    def test_acknowledge_fails_on_exception(self, mock_service):
+        ack_method = (mock_service.return_value.projects.return_value
+                      .subscriptions.return_value.acknowledge)
+        ack_method.return_value.execute.side_effect = HttpError(
+            resp={'status': '404'}, content='')
+
+        with self.assertRaises(Exception) as e:
+            self.pubsub_hook.acknowledge(
+                TEST_PROJECT, TEST_SUBSCRIPTION, ['1', '2', '3'])
+            ack_method.assert_called_with(
+                subscription=EXPANDED_SUBSCRIPTION,
+                body={'ackIds': ['1', '2', '3']})
+            print(e)

@@ -210,3 +210,62 @@ class PubSubHook(GoogleCloudBaseHook):
             else:
                 raise PubSubException('Error deleting subscription %s' %
                                       full_subscription, e)
+
+    def pull(self, project, subscription, max_messages,
+             return_immediately=False):
+        """Pulls up to ``max_messages`` messages from Pub/Sub subscription.
+
+        :param project: the GCP project name or ID in which to create
+            the topic
+        :type project: string
+        :param subscription: the Pub/Sub subscription name to delete; do not
+            include the 'projects/{project}/topics/' prefix.
+        :type subscription: string
+        :param max_messages: The maximum number of messages to return from
+            the Pub/Sub API.
+        :type max_messages: int
+        :param return_immediately: If set, the Pub/Sub API will immediately
+            return if no messages are available. Otherwise, the request will
+            block for an undisclosed, but bounded period of time
+        :type return_immediately: bool
+
+        :return A list of Pub/Sub ReceivedMessage objects each containing
+            an ackId property and a message property
+        """
+        service = self.get_conn()
+        full_subscription = _format_subscription(project, subscription)
+        body = {
+            'maxMessages': max_messages,
+            'returnImmediately': return_immediately
+        }
+        try:
+            response = service.projects().subscriptions().pull(
+                subscription=full_subscription, body=body).execute()
+            return response.get('receivedMessages', [])
+        except errors.HttpError as e:
+            raise Exception('Error pulling messages from subscription %s' %
+                            full_subscription, e)
+
+    def acknowledge(self, project, subscription, ack_ids):
+        """Pulls up to ``max_messages`` messages from Pub/Sub subscription.
+
+        :param project: the GCP project name or ID in which to create
+            the topic
+        :type project: string
+        :param subscription: the Pub/Sub subscription name to delete; do not
+            include the 'projects/{project}/topics/' prefix.
+        :type subscription: string
+        :param ack_ids: List of ReceivedMessage ackIds from a previous pull
+            response
+        :type ack_ids: list
+        """
+        service = self.get_conn()
+        full_subscription = _format_subscription(project, subscription)
+        try:
+            service.projects().subscriptions().acknowledge(
+                subscription=full_subscription, body={'ackIds': ack_ids}
+            ).execute()
+        except errors.HttpError as e:
+            raise Exception(
+                'Error acknowledging %s messages pulled from subscription %s' %
+                (len(ack_ids), full_subscription, e))
