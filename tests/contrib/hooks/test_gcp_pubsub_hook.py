@@ -114,7 +114,7 @@ class PubSubHookTest(unittest.TestCase):
 
         create_method = (
             mock_service.return_value.projects.return_value.subscriptions.
-                return_value.create)
+            return_value.create)
         expected_body = {
             'topic': EXPANDED_TOPIC,
             'ackDeadlineSeconds': 10
@@ -131,7 +131,7 @@ class PubSubHookTest(unittest.TestCase):
 
         create_method = (
             mock_service.return_value.projects.return_value.subscriptions.
-                return_value.create)
+            return_value.create)
 
         expected_subscription = 'projects/%s/subscriptions/%s' % (
             'a-different-project', TEST_SUBSCRIPTION)
@@ -155,7 +155,7 @@ class PubSubHookTest(unittest.TestCase):
 
     @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
     def test_delete_nonexisting_subscription_failifnotexists(self,
-        mock_service):
+                                                             mock_service):
         (mock_service.return_value.projects.return_value.subscriptions.
          return_value.delete.return_value.execute.side_effect) = HttpError(
             resp={'status': '404'}, content='')
@@ -176,7 +176,7 @@ class PubSubHookTest(unittest.TestCase):
                                                         TEST_TOPIC)
         create_method = (
             mock_service.return_value.projects.return_value.subscriptions.
-                return_value.create)
+            return_value.create)
         expected_body = {
             'topic': EXPANDED_TOPIC,
             'ackDeadlineSeconds': 10
@@ -195,7 +195,7 @@ class PubSubHookTest(unittest.TestCase):
 
         create_method = (
             mock_service.return_value.projects.return_value.subscriptions.
-                return_value.create)
+            return_value.create)
         expected_body = {
             'topic': EXPANDED_TOPIC,
             'ackDeadlineSeconds': 30
@@ -286,7 +286,7 @@ class PubSubHookTest(unittest.TestCase):
     @mock.patch(PUBSUB_STRING.format('PubSubHook.get_conn'))
     def test_acknowledge(self, mock_service):
         ack_method = (mock_service.return_value.projects.return_value
-                       .subscriptions.return_value.acknowledge)
+                      .subscriptions.return_value.acknowledge)
         self.pubsub_hook.acknowledge(
             TEST_PROJECT, TEST_SUBSCRIPTION, ['1', '2', '3'])
         ack_method.assert_called_with(

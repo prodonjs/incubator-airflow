@@ -14,7 +14,6 @@
 
 from airflow.contrib.hooks.gcp_pubsub_hook import PubSubHook
 from airflow.models import BaseOperator
-from airflow.operators.sensors import BaseSensorOperator
 from airflow.utils.decorators import apply_defaults
 
 
@@ -242,8 +241,7 @@ class PubSubTopicDeleteOperator(BaseOperator):
             *args,
             **kwargs):
         """
-        :param project: the GCP project name or ID in which to work
-            (templated)
+        :param project: the GCP project ID in which to work (templated)
         :type project: string
         :param topic: the topic to delete. Do not include the
             full topic path. In other words, instead of
@@ -319,8 +317,7 @@ class PubSubSubscriptionDeleteOperator(BaseOperator):
             *args,
             **kwargs):
         """
-        :param project: the GCP project name or ID in which to work
-            (templated)
+        :param project: the GCP project ID in which to work (templated)
         :type project: string
         :param subscription: the subscription to delete. Do not include the
             full subscription path. In other words, instead of
@@ -370,6 +367,7 @@ class PubSubPublishOperator(BaseOperator):
         m3 = {'attributes': {'foo': ''}}
 
         t1 = PubSubPublishOperator(
+            project='my-project',
             topic='my_topic',
             messages=[m1, m2, m3],
             create_topic=True,
@@ -392,8 +390,7 @@ class PubSubPublishOperator(BaseOperator):
             *args,
             **kwargs):
         """
-        :param project: the GCP project name or ID in which to work
-            (templated)
+        :param project: the GCP project ID in which to work (templated)
         :type project: string
         :param topic: the topic to which to publish. Do not include the
             full topic path. In other words, instead of
@@ -425,65 +422,6 @@ class PubSubPublishOperator(BaseOperator):
         self.project = project
         self.topic = topic
         self.messages = messages
-
-    def execute(self, context):
-        hook = PubSubHook(gcp_conn_id=self.gcp_conn_id,
-                          delegate_to=self.delegate_to)
-        hook.publish(self.project, self.topic, self.messages)
-
-
-class PubSubPullOperator(BaseSensorOperator):
-    """Pulls messages from a PubSub topic.
-
-    This operator will pull messages from the specified PubSub subscription.
-
-
-    ``project``, ``topic``, and ``messages`` are templated so you can use
-    variables in them.
-    """
-    template_fields = ['project', 'subscription']
-    ui_color = '#0273d4'
-
-    @apply_defaults
-    def __init__(
-        self,
-        project,
-        subscription,
-        max_messages=5,
-        return_immediately=False,
-        gcp_conn_id='google_cloud_default',
-        delegate_to=None,
-        *args,
-        **kwargs):
-        """
-        :param project: the GCP project name or ID in which to work
-            (templated)
-        :type project: string
-        :param subscription: the Pub/Sub subscription name. Do not include the
-            full subscription path.
-        :type subscription: string
-        :param max_messages: The maximum number of messages to retrieve per
-            PubSub pull request
-        :type max_messages: int
-        :param return_immediately: If True, instruct the PubSub API to return
-            immediately if no messages are available for delivery.
-        :type return_immediately: int
-        :param gcp_conn_id: The connection ID to use connecting to
-            Google Cloud Platform.
-        :type gcp_conn_id: string
-        :param delegate_to: The account to impersonate, if any.
-            For this to work, the service account making the request
-            must have domain-wide delegation enabled.
-        :type delegate_to: string
-        """
-        super(PubSubPublishOperator, self).__init__(*args, **kwargs)
-
-        self.gcp_conn_id = gcp_conn_id
-        self.delegate_to = delegate_to
-        self.project = project
-        self.subscription = subscription
-        self.max_messages = max_messages
-        self.return_immediately = return_immediately
 
     def execute(self, context):
         hook = PubSubHook(gcp_conn_id=self.gcp_conn_id,

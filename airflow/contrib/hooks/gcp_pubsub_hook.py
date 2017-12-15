@@ -215,10 +215,9 @@ class PubSubHook(GoogleCloudBaseHook):
              return_immediately=False):
         """Pulls up to ``max_messages`` messages from Pub/Sub subscription.
 
-        :param project: the GCP project name or ID in which to create
-            the topic
+        :param project: the GCP project ID where the subscription exists
         :type project: string
-        :param subscription: the Pub/Sub subscription name to delete; do not
+        :param subscription: the Pub/Sub subscription name to pull from; do not
             include the 'projects/{project}/topics/' prefix.
         :type subscription: string
         :param max_messages: The maximum number of messages to return from
@@ -228,9 +227,11 @@ class PubSubHook(GoogleCloudBaseHook):
             return if no messages are available. Otherwise, the request will
             block for an undisclosed, but bounded period of time
         :type return_immediately: bool
-
         :return A list of Pub/Sub ReceivedMessage objects each containing
-            an ackId property and a message property
+            an ``ackId`` property and a ``message`` property, which includes
+            the base64-encoded message content. See
+            https://cloud.google.com/pubsub/docs/reference/rest/v1/\
+                projects.subscriptions/pull#ReceivedMessage
         """
         service = self.get_conn()
         full_subscription = _format_subscription(project, subscription)
@@ -243,8 +244,9 @@ class PubSubHook(GoogleCloudBaseHook):
                 subscription=full_subscription, body=body).execute()
             return response.get('receivedMessages', [])
         except errors.HttpError as e:
-            raise Exception('Error pulling messages from subscription %s' %
-                            full_subscription, e)
+            raise PubSubException(
+                'Error pulling messages from subscription %s' %
+                full_subscription, e)
 
     def acknowledge(self, project, subscription, ack_ids):
         """Pulls up to ``max_messages`` messages from Pub/Sub subscription.
@@ -266,6 +268,6 @@ class PubSubHook(GoogleCloudBaseHook):
                 subscription=full_subscription, body={'ackIds': ack_ids}
             ).execute()
         except errors.HttpError as e:
-            raise Exception(
+            raise PubSubException(
                 'Error acknowledging %s messages pulled from subscription %s' %
                 (len(ack_ids), full_subscription, e))

@@ -40,6 +40,7 @@ TEST_MESSAGES = [
     },
     {'data': b64e('Knock, knock')},
     {'attributes': {'foo': ''}}]
+TEST_POKE_INTERVAl = 0
 
 
 class PubSubTopicCreateOperatorTest(unittest.TestCase):
