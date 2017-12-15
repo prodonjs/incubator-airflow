@@ -37,16 +37,16 @@ class PubSubPullSensor(BaseSensorOperator):
 
     @apply_defaults
     def __init__(
-        self,
-        project,
-        subscription,
-        max_messages=5,
-        return_immediately=False,
-        ack_messages=False,
-        gcp_conn_id='google_cloud_default',
-        delegate_to=None,
-        *args,
-        **kwargs):
+            self,
+            project,
+            subscription,
+            max_messages=5,
+            return_immediately=False,
+            ack_messages=False,
+            gcp_conn_id='google_cloud_default',
+            delegate_to=None,
+            *args,
+            **kwargs):
         """
         :param project: the GCP project ID for the subscription (templated)
         :type project: string

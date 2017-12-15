@@ -136,10 +136,11 @@ class PubSubSubscriptionCreateOperator(BaseOperator):
                     topic_project='my-project', topic='my-topic')
             )
 
-    ``project``, ``topic``, and ``subscription`` are templated so you can use
-    variables in them.
+    ``topic_project``, ``topic``, ``subscription``, and
+    ``subscription`` are templated so you can use variables in them.
     """
-    template_fields = ['project', 'topic', 'subscription']
+    template_fields = ['topic_project', 'topic', 'subscription',
+                       'subscription_project']
     ui_color = '#0273d4'
 
     @apply_defaults

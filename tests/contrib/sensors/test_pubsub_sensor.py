@@ -15,7 +15,7 @@
 from base64 import b64encode as b64e
 import unittest
 
-from airflow.contrib.sensors.pubsub_sensor import PubSubHook, PubSubPullSensor
+from airflow.contrib.sensors.pubsub_sensor import PubSubPullSensor
 from airflow.exceptions import AirflowSensorTimeout
 
 try:
